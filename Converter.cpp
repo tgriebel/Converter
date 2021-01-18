@@ -217,10 +217,11 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
     const uint32_t modelIx = rm.AllocModel();
     Model* model = rm.GetModel( modelIx );
 
-    if ( materials.size() > 0 )
+    const uint32_t materialCount = materials.size();
+    for ( uint32_t i = 0; i < materialCount; ++i )
     {
-        tinyobj::material_t& material = materials[ 0 ];
-        material_t& m = model->materials[ 0 ];
+        tinyobj::material_t& material = materials[ i ];
+        material_t m;
 
         memset( m.name, 0, material_t::BufferSize );
         strcpy_s( m.name, material_t::BufferSize, material.name.c_str() );
@@ -234,9 +235,7 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
         m.Tr = 1.0 - Saturate( material.dissolve );
         m.d = material.dissolve;
         m.illum = material.illum;
-        m.textured = false;
-
-        model->materialCount += 1;
+        m.textured = false;  
 
         std::string name = path.substr( path.find_last_of( '/' ) + 1, path.size() );
 
@@ -252,6 +251,8 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
             m.colorMapId = rm.StoreImageCopy( image );
             m.textured = true;
         }
+
+        rm.StoreMaterialCopy( m );
     }
 
     // Build VB and IB
@@ -287,7 +288,15 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
             }
             surf.ibEnd = rm.GetIbOffset();
 
-            surf.materialId = 0;
+            // Intentionally does not support per-vertex materials
+            if( shapes[ shapeIx ].mesh.material_ids.size() > 0 )
+            {
+                surf.materialId = shapes[ shapeIx ].mesh.material_ids[ 0 ];
+            }
+            else
+            {
+                surf.materialId = 0;
+            }
         }
     }
 
@@ -297,10 +306,14 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
 
 int main()
 {
-    std::vector<std::string> models = { "12140_Skull_v3_L2", "sphere", "box" };
+    //std::vector<std::string> models = { "12140_Skull_v3_L2", "sphere", "box" };
+
+    std::vector<std::string> models = { "legoToys" };
 
     for( uint32_t i = 0; i < models.size(); ++i )
     {
+        std::cout << "Converting: " << models[ i ] << "...\n";
+
         ResourceManager modelRM;
 
         uint32_t vb = modelRM.AllocVB();
