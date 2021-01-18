@@ -247,7 +247,7 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
         m.Ka = material.ambient[ 0 ];
         m.Ke = material.emission[ 0 ];
         m.Kd = material.diffuse[ 0 ];
-        m.Ks = material.shininess;
+        m.Ks = material.specular[ 0 ];
         m.Tf = material.transmittance[ 0 ];
         m.Tr = 1.0 - Saturate( material.dissolve );
         m.d = material.dissolve;
