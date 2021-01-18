@@ -18,8 +18,6 @@ static const std::string ModelPath = "models/";
 static const std::string TexturePath = "textures/";
 static const std::string ConvertedPath = "models/";
 
-ResourceManager rm;
-
 enum imageFormat_t
 {
     IMAGE_FORMAT_BMP,
@@ -107,15 +105,25 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
         materialName = materials[ 0 ].name;
     }
 
-    std::vector<vertex_t> vertices;
-    std::vector<uint32_t> indices;
-    std::vector<vertex_t> uniqueVertices{};
+    using indexBuffer = std::vector<uint32_t>;
 
+    std::vector<vertex_t>       vertices;
+    std::vector<indexBuffer>    indexBuffers;
+    std::vector<vertex_t>       uniqueVertices{};
+
+    const uint32_t shapeCount = shapes.size();
     const uint32_t vertexCount = attrib.vertices.size();
     const uint32_t normalCount = attrib.normals.size();
     const uint32_t textureCount = attrib.texcoords.size();
 
-    for ( const auto& shape : shapes ) {
+    indexBuffers.resize( shapeCount );
+    
+    for ( uint32_t shapeIx = 0; shapeIx < shapeCount; ++shapeIx )
+    {
+        indexBuffer& indices = indexBuffers[ shapeIx ];
+
+        tinyobj::shape_t& shape = shapes[ shapeIx ];
+
         for ( const auto& index : shape.mesh.indices )
         {
             vertex_t vert;
@@ -208,34 +216,8 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
 
     const uint32_t modelIx = rm.AllocModel();
     Model* model = rm.GetModel( modelIx );
-    model->surfs.push_back( surface_t() );
 
-    // Build VB and IB
-    {
-        model->name = path;
-        model->surfs.push_back( surface_t() );
-        model->surfs[ 0 ].vb = rm.GetVB();
-        model->surfs[ 0 ].ib = rm.GetIB();
-        model->surfs[ 0 ].vbOffset = rm.GetVbOffset();
-        model->surfs[ 0 ].ibOffset = rm.GetIbOffset();
-
-        const uint32_t vertexCnt = uniqueVertices.size();
-        for ( int32_t i = 0; i < vertexCnt; ++i )
-        {
-            rm.AddVertex( uniqueVertices[ i ] );
-        }
-        model->surfs[ 0 ].vbEnd = rm.GetVbOffset();
-
-        const size_t indexCnt = indices.size();
-        assert( ( indexCnt % 3 ) == 0 );
-        for ( size_t i = 0; i < indexCnt; i++ )
-        {
-            rm.AddIndex( model->surfs[ 0 ].vbOffset + indices[ i ] );
-        }
-        model->surfs[ 0 ].ibEnd = rm.GetIbOffset();
-    }
-
-    if( materials.size() > 0  )
+    if ( materials.size() > 0 )
     {
         tinyobj::material_t& material = materials[ 0 ];
         material_t& m = model->materials[ 0 ];
@@ -272,31 +254,67 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
         }
     }
 
+    // Build VB and IB
+    // VB is shared while IB is shared but partitioned by shape
+    {
+        model->surfs.resize( shapeCount );
+
+        uint32_t vbOffset = rm.GetVbOffset();
+        const uint32_t vertexCnt = uniqueVertices.size();
+        for ( int32_t i = 0; i < vertexCnt; ++i )
+        {
+            rm.AddVertex( uniqueVertices[ i ] );
+        }
+        uint32_t vbEnd = rm.GetVbOffset();
+
+        for ( uint32_t shapeIx = 0; shapeIx < shapeCount; ++shapeIx )
+        {
+            model->name = path;
+
+            surface_t& surf = model->surfs[ shapeIx ];
+
+            surf.vb = rm.GetVB();
+            surf.ib = rm.GetIB();       
+            surf.vbOffset = vbOffset;
+            surf.vbEnd = vbEnd;
+
+            surf.ibOffset = rm.GetIbOffset();
+            const size_t indexCnt = indexBuffers[ shapeIx ].size();
+            assert( ( indexCnt % 3 ) == 0 );
+            for ( size_t i = 0; i < indexCnt; i++ )
+            {
+                rm.AddIndex( surf.vbOffset + indexBuffers[ shapeIx ][ i ] );
+            }
+            surf.ibEnd = rm.GetIbOffset();
+
+            surf.materialId = 0;
+        }
+    }
+
     return modelIx;
 }
 
 
 int main()
-{ 
-    ConvertImage( "tex.bmp", "test", IMAGE_FORMAT_BMP );
+{
+    std::vector<std::string> models = { "12140_Skull_v3_L2", "sphere", "box" };
 
-    uint32_t vb = rm.AllocVB();
-    uint32_t ib = rm.AllocIB();
+    for( uint32_t i = 0; i < models.size(); ++i )
+    {
+        ResourceManager modelRM;
 
-    rm.PushVB( vb );
-    rm.PushIB( ib );
+        uint32_t vb = modelRM.AllocVB();
+        uint32_t ib = modelRM.AllocIB();
 
-    std::string modelName = "12140_Skull_v3_L2";
+        modelRM.PushVB( vb );
+        modelRM.PushIB( ib );
 
-    uint32_t srcModelId = LoadModel( ModelPath + modelName + ".obj", rm );
+        std::string& modelName = models[ i ];
 
-    StoreModelBin( ConvertedPath + modelName + ".mdl", rm, srcModelId );
-    uint32_t modelIx = LoadModelBin( ConvertedPath + modelName + ".mdl", rm );
+        uint32_t srcModelId = LoadModel( ModelPath + modelName + ".obj", modelRM );
 
-    Model* model = rm.GetModel( modelIx );
-    std::string basePath = ModelPath.substr( 0, ModelPath.find_last_of( '/' ) );
-    LoadMaterialObj( basePath + "/" + model->materials[ 0 ].name, rm, model->materials[ 0 ] );
-    model->materialCount += 1;
-
-    StoreModelObj( "test.obj", rm, modelIx );
+        StoreModelBin( ConvertedPath + modelName + ".mdl", modelRM, srcModelId );
+        uint32_t modelIx = LoadModelBin( ConvertedPath + modelName + ".mdl", modelRM );
+        // StoreModelObj( "test.obj", modelRM, modelIx );
+    }
 }
