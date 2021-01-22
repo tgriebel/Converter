@@ -26,7 +26,7 @@ enum imageFormat_t
 };
 
 
-void ConvertImage( const std::string& srcFileName, const std::string& dstFileName, imageFormat_t format )
+bool ConvertImage( const std::string& srcFileName, const std::string& dstFileName, imageFormat_t format )
 {
     int32_t width;
     int32_t height;
@@ -36,7 +36,9 @@ void ConvertImage( const std::string& srcFileName, const std::string& dstFileNam
 
     if ( !pixels )
     {
-        throw std::runtime_error( "Failed to load texture image!" );
+        stbi_image_free( pixels );
+        std::cout << "Failed to load texture image!" << std::endl;
+        return false;
     }
 
     if( format == IMAGE_FORMAT_BMP )
@@ -52,10 +54,11 @@ void ConvertImage( const std::string& srcFileName, const std::string& dstFileNam
         
     }
     stbi_image_free( pixels );
+    return true;
 }
 
 
-void LoadImage( const std::string& path, Image<Color>& outImage )
+bool LoadImage( const std::string& path, Image<Color>& outImage )
 {
     int32_t width;
     int32_t height;
@@ -65,7 +68,9 @@ void LoadImage( const std::string& path, Image<Color>& outImage )
 
     if ( !pixels )
     {
-        throw std::runtime_error( "Failed to load texture image!" );
+        stbi_image_free( pixels );
+        std::cout << "Failed to load texture image!" << std::endl;
+        return false;
     }
 
     outImage = Image<Color>( width, height );
@@ -84,6 +89,17 @@ void LoadImage( const std::string& path, Image<Color>& outImage )
     }
 
     stbi_image_free( pixels );
+    return true;
+}
+
+
+rgbTuplef_t TinyObjColorToRGB( tinyobj::real_t ary[ 3 ] )
+{
+    rgbTuplef_t rgb;
+    rgb.r = ary[ 0 ];
+    rgb.g = ary[ 1 ];
+    rgb.b = ary[ 2 ];
+    return rgb;
 }
 
 
@@ -227,11 +243,11 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
         strcpy_s( m.name, material_t::BufferSize, material.name.c_str() );
         m.Ni = material.ior;
         m.Ns = material.shininess;
-        m.Ka = material.ambient[ 0 ];
-        m.Ke = material.emission[ 0 ];
-        m.Kd = material.diffuse[ 0 ];
-        m.Ks = material.specular[ 0 ];
-        m.Tf = material.transmittance[ 0 ];
+        m.Ka = TinyObjColorToRGB( material.ambient );
+        m.Ke = TinyObjColorToRGB( material.emission );
+        m.Kd = TinyObjColorToRGB( material.diffuse );
+        m.Ks = TinyObjColorToRGB( material.specular );
+        m.Tf = TinyObjColorToRGB( material.transmittance );
         m.Tr = 1.0 - Saturate( material.dissolve );
         m.d = material.dissolve;
         m.illum = material.illum;
@@ -242,15 +258,18 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
         if ( material.diffuse_texname.size() > 0 )
         {
             Image<Color> image;
-            LoadImage( std::string( TexturePath + material.diffuse_texname ), image );
+            if( LoadImage( std::string( TexturePath + material.diffuse_texname ), image ) );
+            {
+                Bitmap bitmap = Bitmap( image.GetWidth(), image.GetHeight() );
+                ImageToBitmap( image, bitmap );
+                bitmap.Write( "testConvert.bmp" );
 
-            Bitmap bitmap = Bitmap( image.GetWidth(), image.GetHeight() );
-            ImageToBitmap( image, bitmap );
-            bitmap.Write( "testConvert.bmp" );
-
-            m.colorMapId = rm.StoreImageCopy( image );
-            m.textured = true;
+                m.colorMapId = rm.StoreImageCopy( image );
+                m.textured = true;
+            }
         }
+
+        m.normalMapId = 0;
 
         rm.StoreMaterialCopy( m );
     }
@@ -295,7 +314,7 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
             }
             else
             {
-                surf.materialId = 0;
+                surf.materialId = -1;
             }
         }
     }
@@ -306,9 +325,9 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
 
 int main()
 {
-    //std::vector<std::string> models = { "12140_Skull_v3_L2", "sphere", "box" };
+    //std::vector<std::string> models = { "12140_Skull_v3_L2", "sphere", "box", "rx-7 veilside fortune" };
 
-    std::vector<std::string> models = { "legoToys" };
+    std::vector<std::string> models = { "sphere" };
 
     for( uint32_t i = 0; i < models.size(); ++i )
     {
