@@ -152,7 +152,7 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
             }
             else
             {
-                vert.pos = vec4d( 0.0, 0.0, 0.0 );
+                vert.pos = vec4f( 0.0f, 0.0f, 0.0f );
             }
 
             if ( ( index.normal_index >= 0 ) && ( ( 3 * index.normal_index + 2 ) < normalCount ) )
@@ -163,7 +163,7 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
             }
             else
             {
-                vert.normal = vec3d( 1.0, 0.0, 0.0 ).Normalize();
+                vert.normal = vec3f( 1.0f, 0.0f, 0.0f ).Normalize();
             }
 
             if ( ( index.texcoord_index >= 0 ) && ( ( 2 * index.texcoord_index + 1 ) < textureCount ) )
@@ -173,7 +173,7 @@ uint32_t LoadModel( const std::string& path, ResourceManager& rm )
             }
             else
             {
-                vert.uv = vec2d( 0.0, 0.0 );
+                vert.uv = vec2f( 0.0f, 0.0f );
             }
 
             vert.color = Color::White;
@@ -327,7 +327,7 @@ int main()
 {
     //std::vector<std::string> models = { "12140_Skull_v3_L2", "sphere", "box", "rx-7 veilside fortune" };
 
-    std::vector<std::string> models = { "sphere" };
+    std::vector<std::string> models = { "911_scene" };
 
     for( uint32_t i = 0; i < models.size(); ++i )
     {
